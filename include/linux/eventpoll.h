@@ -34,7 +34,7 @@
  * re-allowed until epoll_wait is called again after consuming the wakeup
  * event(s).
  *
- * Requires CAP_BLOCK_SUSPEND
+ * Requires CAP_EPOLLWAKEUP
  */
 #define EPOLLWAKEUP (1 << 29)
 
