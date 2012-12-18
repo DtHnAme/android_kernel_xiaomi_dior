@@ -768,9 +768,9 @@ static struct mount *clone_mnt(struct mount *old, struct dentry *root,
 	mnt->mnt.mnt_root = dget(root);
 	mnt->mnt_mountpoint = mnt->mnt.mnt_root;
 	mnt->mnt_parent = mnt;
-	br_write_lock(&vfsmount_lock);
+	br_write_lock(vfsmount_lock);
 	list_add_tail(&mnt->mnt_instance, &sb->s_mounts);
-	br_write_unlock(&vfsmount_lock);
+	br_write_unlock(vfsmount_lock);
 
 	if (flag & CL_SLAVE) {
 		list_add(&mnt->mnt_slave, &old->mnt_slave_list);
@@ -1492,13 +1492,13 @@ static int attach_recursive_mnt(struct mount *source_mnt,
 		if (err)
 			goto out;
 		err = propagate_mnt(dest_mnt, dest_dentry, source_mnt, &tree_list);
-		br_write_lock(&vfsmount_lock);
+		br_write_lock(vfsmount_lock);
 		if (err)
 			goto out_cleanup_ids;
 		for (p = source_mnt; p; p = next_mnt(p, source_mnt))
 			set_mnt_shared(p);
 	} else {
-		br_write_lock(&vfsmount_lock);
+		br_write_lock(vfsmount_lock);
 	}
 	if (parent_path) {
 		detach_mnt(source_mnt, parent_path);
@@ -1522,7 +1522,7 @@ static int attach_recursive_mnt(struct mount *source_mnt,
 		child = list_first_entry(&tree_list, struct mount, mnt_hash);
 		umount_tree(child, 0, &tree_list);
 	}
-	br_write_unlock(&vfsmount_lock);
+	br_write_unlock(vfsmount_lock);
 	cleanup_group_ids(source_mnt, NULL);
  out:
 	return err;
@@ -1730,9 +1730,9 @@ static int do_remount(struct path *path, int flags, int mnt_flags,
 		err = change_mount_flags(path->mnt, flags);
 	else {
 		err = do_remount_sb2(path->mnt, sb, flags, data, 0);
-		br_write_lock(&vfsmount_lock);
+		br_write_lock(vfsmount_lock);
 		propagate_remount(mnt);
-		br_write_unlock(&vfsmount_lock);
+		br_write_unlock(vfsmount_lock);
 	}
 	if (!err) {
 		br_write_lock(vfsmount_lock);
