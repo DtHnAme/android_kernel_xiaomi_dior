@@ -28,7 +28,6 @@
 #include <linux/ratelimit.h>
 #include <linux/bio.h>
 #include <linux/dcache.h>
-#include <linux/namei.h>
 #include <linux/fscrypto.h>
 
 static unsigned int num_prealloc_crypto_pages = 32;
@@ -83,14 +82,13 @@ EXPORT_SYMBOL(fscrypt_release_ctx);
 /**
  * fscrypt_get_ctx() - Gets an encryption context
  * @inode:       The inode for which we are doing the crypto
- * @gfp_flags:   The gfp flag for memory allocation
  *
  * Allocates and initializes an encryption context.
  *
  * Return: An allocated and initialized encryption context on success; error
  * value or NULL otherwise.
  */
-struct fscrypt_ctx *fscrypt_get_ctx(struct inode *inode, gfp_t gfp_flags)
+struct fscrypt_ctx *fscrypt_get_ctx(struct inode *inode)
 {
 	struct fscrypt_ctx *ctx = NULL;
 	struct fscrypt_info *ci = inode->i_crypt_info;
@@ -116,7 +114,7 @@ struct fscrypt_ctx *fscrypt_get_ctx(struct inode *inode, gfp_t gfp_flags)
 		list_del(&ctx->free_list);
 	spin_unlock_irqrestore(&fscrypt_ctx_lock, flags);
 	if (!ctx) {
-		ctx = kmem_cache_zalloc(fscrypt_ctx_cachep, gfp_flags);
+		ctx = kmem_cache_zalloc(fscrypt_ctx_cachep, GFP_NOFS);
 		if (!ctx)
 			return ERR_PTR(-ENOMEM);
 		ctx->flags |= FS_CTX_REQUIRES_FREE_ENCRYPT_FL;
@@ -150,8 +148,7 @@ typedef enum {
 
 static int do_page_crypto(struct inode *inode,
 			fscrypt_direction_t rw, pgoff_t index,
-			struct page *src_page, struct page *dest_page,
-			gfp_t gfp_flags)
+			struct page *src_page, struct page *dest_page)
 {
 	u8 xts_tweak[FS_XTS_TWEAK_SIZE];
 	struct ablkcipher_request *req = NULL;
@@ -161,7 +158,7 @@ static int do_page_crypto(struct inode *inode,
 	struct crypto_ablkcipher *tfm = ci->ci_ctfm;
 	int res = 0;
 
-	req = ablkcipher_request_alloc(tfm, gfp_flags);
+	req = ablkcipher_request_alloc(tfm, GFP_NOFS);
 	if (!req) {
 		printk_ratelimited(KERN_ERR
 				"%s: crypto_request_alloc() failed\n",
@@ -174,7 +171,7 @@ static int do_page_crypto(struct inode *inode,
 		fscrypt_complete, &ecr);
 
 	BUILD_BUG_ON(FS_XTS_TWEAK_SIZE < sizeof(index));
-	memcpy(xts_tweak, &index, sizeof(index));
+	memcpy(xts_tweak, &inode->i_ino, sizeof(index));
 	memset(&xts_tweak[sizeof(index)], 0,
 			FS_XTS_TWEAK_SIZE - sizeof(index));
 
@@ -203,9 +200,10 @@ static int do_page_crypto(struct inode *inode,
 	return 0;
 }
 
-static struct page *alloc_bounce_page(struct fscrypt_ctx *ctx, gfp_t gfp_flags)
+static struct page *alloc_bounce_page(struct fscrypt_ctx *ctx)
 {
-	ctx->w.bounce_page = mempool_alloc(fscrypt_bounce_page_pool, gfp_flags);
+	ctx->w.bounce_page = mempool_alloc(fscrypt_bounce_page_pool,
+							GFP_NOWAIT);
 	if (ctx->w.bounce_page == NULL)
 		return ERR_PTR(-ENOMEM);
 	ctx->flags |= FS_WRITE_PATH_FL;
@@ -216,7 +214,6 @@ static struct page *alloc_bounce_page(struct fscrypt_ctx *ctx, gfp_t gfp_flags)
  * fscypt_encrypt_page() - Encrypts a page
  * @inode:          The inode for which the encryption should take place
  * @plaintext_page: The page to encrypt. Must be locked.
- * @gfp_flags:      The gfp flag for memory allocation
  *
  * Allocates a ciphertext page and encrypts plaintext_page into it using the ctx
  * encryption context.
@@ -229,7 +226,7 @@ static struct page *alloc_bounce_page(struct fscrypt_ctx *ctx, gfp_t gfp_flags)
  * error value or NULL.
  */
 struct page *fscrypt_encrypt_page(struct inode *inode,
-				struct page *plaintext_page, gfp_t gfp_flags)
+				struct page *plaintext_page)
 {
 	struct fscrypt_ctx *ctx;
 	struct page *ciphertext_page = NULL;
@@ -237,19 +234,18 @@ struct page *fscrypt_encrypt_page(struct inode *inode,
 
 	BUG_ON(!PageLocked(plaintext_page));
 
-	ctx = fscrypt_get_ctx(inode, gfp_flags);
+	ctx = fscrypt_get_ctx(inode);
 	if (IS_ERR(ctx))
 		return (struct page *)ctx;
 
 	/* The encryption operation will require a bounce page. */
-	ciphertext_page = alloc_bounce_page(ctx, gfp_flags);
+	ciphertext_page = alloc_bounce_page(ctx);
 	if (IS_ERR(ciphertext_page))
 		goto errout;
 
 	ctx->w.control_page = plaintext_page;
 	err = do_page_crypto(inode, FS_ENCRYPT, plaintext_page->index,
-					plaintext_page, ciphertext_page,
-					gfp_flags);
+					plaintext_page, ciphertext_page);
 	if (err) {
 		ciphertext_page = ERR_PTR(err);
 		goto errout;
@@ -280,7 +276,7 @@ int fscrypt_decrypt_page(struct page *page)
 	BUG_ON(!PageLocked(page));
 
 	return do_page_crypto(page->mapping->host,
-			FS_DECRYPT, page->index, page, page, GFP_NOFS);
+			FS_DECRYPT, page->index, page, page);
 }
 EXPORT_SYMBOL(fscrypt_decrypt_page);
 
@@ -294,11 +290,11 @@ int fscrypt_zeroout_range(struct inode *inode, pgoff_t lblk,
 
 	BUG_ON(inode->i_sb->s_blocksize != PAGE_CACHE_SIZE);
 
-	ctx = fscrypt_get_ctx(inode, GFP_NOFS);
+	ctx = fscrypt_get_ctx(inode);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 
-	ciphertext_page = alloc_bounce_page(ctx, GFP_NOWAIT);
+	ciphertext_page = alloc_bounce_page(ctx);
 	if (IS_ERR(ciphertext_page)) {
 		err = PTR_ERR(ciphertext_page);
 		goto errout;
@@ -306,12 +302,11 @@ int fscrypt_zeroout_range(struct inode *inode, pgoff_t lblk,
 
 	while (len--) {
 		err = do_page_crypto(inode, FS_ENCRYPT, lblk,
-					ZERO_PAGE(0), ciphertext_page,
-					GFP_NOFS);
+						ZERO_PAGE(0), ciphertext_page);
 		if (err)
 			goto errout;
 
-		bio = bio_alloc(GFP_NOWAIT, 1);
+		bio = bio_alloc(GFP_KERNEL, 1);
 		if (!bio) {
 			err = -ENOMEM;
 			goto errout;
@@ -349,20 +344,13 @@ EXPORT_SYMBOL(fscrypt_zeroout_range);
  */
 static int fscrypt_d_revalidate(struct dentry *dentry, unsigned int flags)
 {
-	struct dentry *dir;
-	struct fscrypt_info *ci;
+	struct inode *dir = dentry->d_parent->d_inode;
+	struct fscrypt_info *ci = dir->i_crypt_info;
 	int dir_has_key, cached_with_key;
 
-	if (flags & LOOKUP_RCU)
-		return -ECHILD;
-
-	dir = dget_parent(dentry);
-	if (!d_inode(dir)->i_sb->s_cop->is_encrypted(d_inode(dir))) {
-		dput(dir);
+	if (!dir->i_sb->s_cop->is_encrypted(dir))
 		return 0;
-	}
 
-	ci = d_inode(dir)->i_crypt_info;
 	if (ci && ci->ci_keyring_key &&
 	    (ci->ci_keyring_key->flags & ((1 << KEY_FLAG_INVALIDATED) |
 					  (1 << KEY_FLAG_REVOKED) |
@@ -374,7 +362,6 @@ static int fscrypt_d_revalidate(struct dentry *dentry, unsigned int flags)
 	cached_with_key = dentry->d_flags & DCACHE_ENCRYPTED_WITH_KEY;
 	spin_unlock(&dentry->d_lock);
 	dir_has_key = (ci != NULL);
-	dput(dir);
 
 	/*
 	 * If the dentry was cached without the key, and it is a
