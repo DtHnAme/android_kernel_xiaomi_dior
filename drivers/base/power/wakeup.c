@@ -407,6 +407,9 @@ static void wakeup_source_activate(struct wakeup_source *ws)
 	if (!enable_bluedroid_timer_ws && !strcmp(ws->name, "bluedroid_timer"))
 		return;
 
+	if (!enable_bluesleep_ws && !strcmp(ws->name, "bluesleep"))
+		return;
+
 	ws->active = true;
 	ws->active_count++;
 	ws->last_time = ktime_get();
