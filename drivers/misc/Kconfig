@@ -685,6 +685,14 @@ config IMMERSION_HAPTIC
 	help
 	  The driver support immersion haptic controller.
 
+config HPH_HIGH_PERF
+	bool "Enable Headset in high performance"
+	default n
+	help
+	 Invoke class AB mode for headset path when sample rate
+	 is set to 192KHz and bit width is set to 24. Change enables
+	 headset path in Ultra High Quality Audio(UHQA)mode.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
