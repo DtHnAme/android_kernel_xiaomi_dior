@@ -40,8 +40,8 @@ struct notifier_block freq_transition;
 struct notifier_block cpu_hotplug;
 
 struct cpu_load_data {
-	cputime64_t prev_cpu_idle;
-	cputime64_t prev_cpu_wall;
+	u64 prev_cpu_idle;
+	u64 prev_cpu_wall;
 	unsigned int avg_load_maxfreq;
 	unsigned int samples;
 	unsigned int window_size;
@@ -58,7 +58,7 @@ static int update_average_load(unsigned int freq, unsigned int cpu)
 	int ret;
 	unsigned int idle_time, wall_time;
 	unsigned int cur_load, load_at_max_freq;
-	cputime64_t cur_wall_time, cur_idle_time;
+	u64 cur_wall_time, cur_idle_time;
 	struct cpu_load_data *pcpu = &per_cpu(cpuload, cpu);
 	struct cpufreq_policy policy;
 
