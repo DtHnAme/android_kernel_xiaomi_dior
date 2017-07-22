@@ -109,15 +109,6 @@ static spinlock_t above_hispeed_delay_lock;
 static unsigned int *above_hispeed_delay = default_above_hispeed_delay;
 static int nabove_hispeed_delay = ARRAY_SIZE(default_above_hispeed_delay);
 
-/* Non-zero means indefinite speed boost active */
-static int boost_val;
-/* Duration of a boot pulse in usecs */
-static int boostpulse_duration_val = DEFAULT_MIN_SAMPLE_TIME;
-/* End time of boost pulse in ktime converted to usecs */
-static u64 boostpulse_endtime;
-
-static bool boosted;
-
 /*
  * Max additional time to wait in idle, beyond timer_rate, at speeds above
  * minimum before wakeup to reduce speed, or -1 if unnecessary.
@@ -403,9 +394,8 @@ static void cpufreq_interactive_timer(unsigned long data)
 	do_div(cputime_speedadj, delta_time);
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
 	cpu_load = loadadjfreq / pcpu->policy->cur;
-	boosted = boost_val || now < boostpulse_endtime;
 
-	if (cpu_load >= go_hispeed_load || boosted) {
+	if (cpu_load >= go_hispeed_load) {
 		if (pcpu->policy->cur < hispeed_freq) {
 			new_freq = hispeed_freq;
 		} else {
@@ -440,9 +430,8 @@ static void cpufreq_interactive_timer(unsigned long data)
 
 	new_freq = pcpu->freq_table[index].frequency;
 
-	if (pcpu->target_freq >= pcpu->policy->max
-	    && new_freq < pcpu->target_freq
-	    && now - pcpu->max_freq_idle_start_time < max_freq_hysteresis) {
+	if (new_freq < pcpu->target_freq &&
+	    now - pcpu->max_freq_hyst_start_time < max_freq_hysteresis) {
 		trace_cpufreq_interactive_notyet(data, cpu_load,
 			pcpu->target_freq, pcpu->policy->cur, new_freq);
 		spin_unlock_irqrestore(&pcpu->target_freq_lock, flags);
@@ -471,7 +460,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	 * (or the indefinite boost is turned off).
 	 */
 
-	if (!boosted || new_freq > hispeed_freq) {
+	if (new_freq > hispeed_freq) {
 		pcpu->floor_freq = new_freq;
 		pcpu->floor_validate_time = now;
 	}
@@ -504,61 +493,6 @@ rearm:
 exit:
 	up_read(&pcpu->enable_sem);
 	return;
-}
-
-static void cpufreq_interactive_idle_start(void)
-{
-	int cpu = smp_processor_id();
-	struct cpufreq_interactive_cpuinfo *pcpu = &per_cpu(cpuinfo, cpu);
-	int pending;
-	unsigned long flags;
-	u64 now;
-
-	if (!down_read_trylock(&pcpu->enable_sem))
-		return;
-	if (!pcpu->governor_enabled)
-		goto exit;
-
-	/* Cancel the timer if cpu is offline */
-	if (cpu_is_offline(cpu)) {
-		del_timer(&pcpu->cpu_timer);
-		del_timer(&pcpu->cpu_slack_timer);
-		goto exit;
-	}
-
-	pending = timer_pending(&pcpu->cpu_timer);
-
-	if (pcpu->target_freq != pcpu->policy->min) {
-		/*
-		 * Entering idle while not at lowest speed.  On some
-		 * platforms this can hold the other CPU(s) at that speed
-		 * even though the CPU is idle. Set a timer to re-evaluate
-		 * speed so this idle CPU doesn't hold the other CPUs above
-		 * min indefinitely.  This should probably be a quirk of
-		 * the CPUFreq driver.
-		 */
-		if (!pending) {
-			pcpu->last_evaluated_jiffy = get_jiffies_64();
-			cpufreq_interactive_timer_resched(smp_processor_id());
-
-			/*
-			 * If timer is cancelled because CPU is running at
-			 * policy->max, record the time CPU first goes to
-			 * idle.
-			 */
-			now = ktime_to_us(ktime_get());
-			if (max_freq_hysteresis) {
-				spin_lock_irqsave(&pcpu->target_freq_lock,
-						  flags);
-				pcpu->max_freq_idle_start_time = now;
-				spin_unlock_irqrestore(&pcpu->target_freq_lock,
-						       flags);
-			}
-		}
-	}
-
-exit:
-	up_read(&pcpu->enable_sem);
 }
 
 static void cpufreq_interactive_idle_end(void)
@@ -997,81 +931,6 @@ static ssize_t store_timer_slack(
 
 define_one_global_rw(timer_slack);
 
-static ssize_t show_boost(struct kobject *kobj, struct attribute *attr,
-			  char *buf)
-{
-	return sprintf(buf, "%d\n", boost_val);
-}
-
-static ssize_t store_boost(struct kobject *kobj, struct attribute *attr,
-			   const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = kstrtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-
-	boost_val = val;
-
-	if (boost_val) {
-		trace_cpufreq_interactive_boost("on");
-		if (!boosted)
-			cpufreq_interactive_boost();
-	} else {
-		boostpulse_endtime = ktime_to_us(ktime_get());
-		trace_cpufreq_interactive_unboost("off");
-	}
-
-	return count;
-}
-
-define_one_global_rw(boost);
-
-static ssize_t store_boostpulse(struct kobject *kobj, struct attribute *attr,
-				const char *buf, size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = kstrtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-
-	boostpulse_endtime = ktime_to_us(ktime_get()) + boostpulse_duration_val;
-	trace_cpufreq_interactive_boost("pulse");
-	if (!boosted)
-		cpufreq_interactive_boost();
-	return count;
-}
-
-static struct global_attr boostpulse =
-	__ATTR(boostpulse, 0200, NULL, store_boostpulse);
-
-static ssize_t show_boostpulse_duration(
-	struct kobject *kobj, struct attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", boostpulse_duration_val);
-}
-
-static ssize_t store_boostpulse_duration(
-	struct kobject *kobj, struct attribute *attr, const char *buf,
-	size_t count)
-{
-	int ret;
-	unsigned long val;
-
-	ret = kstrtoul(buf, 0, &val);
-	if (ret < 0)
-		return ret;
-
-	boostpulse_duration_val = val;
-	return count;
-}
-
-define_one_global_rw(boostpulse_duration);
-
 static ssize_t show_io_is_busy(struct kobject *kobj,
 			struct attribute *attr, char *buf)
 {
@@ -1102,9 +961,6 @@ static struct attribute *interactive_attributes[] = {
 	&min_sample_time_attr.attr,
 	&timer_rate_attr.attr,
 	&timer_slack.attr,
-	&boost.attr,
-	&boostpulse.attr,
-	&boostpulse_duration.attr,
 	&io_is_busy_attr.attr,
 	&max_freq_hysteresis_attr.attr,
 	&align_windows_attr.attr,
