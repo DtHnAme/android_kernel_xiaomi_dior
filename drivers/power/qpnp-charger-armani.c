@@ -1758,7 +1758,7 @@ qpnp_chg_usb_usbin_valid_irq_handler(int irq, void *_chip)
 			qpnp_chg_usb_suspend_enable(chip, 0);
 			qpnp_chg_iusbmax_set(chip, QPNP_CHG_I_MAX_MIN_100);
 			qpnp_chg_iusb_trim_set(chip, chip->usb_trim_default);
-			chip->prev_usb_max_ma = -EINVAL;
+			chip->prev_usb_max_ma = 0;
 
 			schedule_delayed_work(&chip->invalid_charger_work,
 				msecs_to_jiffies(1000));
@@ -5310,8 +5310,9 @@ qpnp_charger_probe(struct spmi_device *spmi)
 		return -ENOMEM;
 	}
 
-	chip->prev_usb_max_ma = -EINVAL;
+	chip->prev_usb_max_ma = 0;
 	chip->fake_battery_soc = -EINVAL;
+	chip->prev_soc = -EINVAL;
 	chip->dev = &(spmi->dev);
 	chip->spmi = spmi;
 
