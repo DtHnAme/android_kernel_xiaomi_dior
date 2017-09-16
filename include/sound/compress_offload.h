@@ -171,6 +171,8 @@ struct snd_compr_audio_info {
  * SNDRV_COMPRESS_STOP: stop a running stream, discarding ring buffer content
  * and the buffers currently with DSP
  * SNDRV_COMPRESS_DRAIN: Play till end of buffers and stop after that
+ * SNDRV_COMPRESS_SET_NEXT_TRACK_PARAM: send codec specific data for the next
+ * track in gapless
  * SNDRV_COMPRESS_IOCTL_VERSION: Query the API version
  */
 #define SNDRV_COMPRESS_IOCTL_VERSION	_IOR('C', 0x00, int)
