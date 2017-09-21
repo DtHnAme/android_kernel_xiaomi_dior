@@ -724,6 +724,7 @@ static void msm_hotplug_stop(void)
 	mutex_destroy(&stats.stats_mutex);
 	kfree(stats.load_hist);
 
+#ifdef CONFIG_STATE_NOTIFIER
 	state_unregister_client(&hotplug.notif);
 #endif
 	hotplug.notif.notifier_call = NULL;
