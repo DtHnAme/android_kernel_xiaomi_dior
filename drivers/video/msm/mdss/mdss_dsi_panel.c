@@ -435,14 +435,6 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 			mdss_dsi_panel_bklt_dcs(sctrl, bl_level);
 		}
 		break;
-#ifdef CONFIG_BACKLIGHT_LM3533
-	case BL_SIC:
-		if (lm3533_bl_bd){
-			lm3533_bl_bd->props.brightness = bl_level;
-			backlight_update_status(lm3533_bl_bd);
-		}
-		break;
-#endif
 	default:
 		pr_err("%s: Unknown bl_ctrl configuration\n",
 			__func__);
