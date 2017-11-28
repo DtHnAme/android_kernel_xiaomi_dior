@@ -288,7 +288,7 @@ int msm_jpeg_platform_init(struct platform_device *pdev,
 	*base = jpeg_base;
 	*irq  = jpeg_irq;
 
-	pgmn_dev->jpeg_client = msm_ion_client_create(-1, "camera-jpeg");
+	pgmn_dev->jpeg_client = msm_ion_client_create(-1, "camera/jpeg");
 	JPEG_DBG("%s:%d] success\n", __func__, __LINE__);
 
 	pgmn_dev->state = MSM_JPEG_INIT;
@@ -347,12 +347,8 @@ int msm_jpeg_platform_release(struct resource *mem, void *base, int irq,
 		JPEG_DBG("%s:%d]", __func__, __LINE__);
 	}
 #endif
-	if (pgmn_dev->jpeg_bus_client) {
-		msm_bus_scale_client_update_request(
-			pgmn_dev->jpeg_bus_client, 0);
-		msm_bus_scale_unregister_client(pgmn_dev->jpeg_bus_client);
-	}
 
+	msm_bus_scale_unregister_client(pgmn_dev->jpeg_bus_client);
 	msm_cam_clk_enable(&pgmn_dev->pdev->dev, jpeg_8x_clk_info,
 	pgmn_dev->jpeg_clk, ARRAY_SIZE(jpeg_8x_clk_info), 0);
 	JPEG_DBG("%s:%d] clock disbale done", __func__, __LINE__);

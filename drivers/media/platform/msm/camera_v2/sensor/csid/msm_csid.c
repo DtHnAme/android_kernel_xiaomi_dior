@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -50,13 +50,6 @@ static int msm_csid_cid_lut(
 		return -EINVAL;
 	}
 	for (i = 0; i < csid_lut_params->num_cid && i < 16; i++) {
-		if (csid_lut_params->vc_cfg[i]->cid >=
-			csid_lut_params->num_cid ||
-			csid_lut_params->vc_cfg[i]->cid < 0) {
-				pr_err("%s: cid outside range %d\n",
-					__func__, csid_lut_params->vc_cfg[i]->cid);
-				return -EINVAL;
-		}
 		CDBG("%s lut params num_cid = %d, cid = %d, dt = %x, df = %d\n",
 			__func__,
 			csid_lut_params->num_cid,
@@ -102,7 +95,7 @@ static void msm_csid_set_debug_reg(void __iomem *csidbase,
 static void msm_csid_reset(struct csid_device *csid_dev)
 {
 	msm_camera_io_w(CSID_RST_STB_ALL, csid_dev->base + CSID_RST_CMD_ADDR);
-	wait_for_completion(&csid_dev->reset_complete);
+	wait_for_completion_interruptible(&csid_dev->reset_complete);
 	return;
 }
 
@@ -114,7 +107,7 @@ static int msm_csid_config(struct csid_device *csid_dev,
 	void __iomem *csidbase;
 	csidbase = csid_dev->base;
 	if (!csidbase || !csid_params) {
-		pr_err("%s:%d csidbase %pK, csid params %pK\n", __func__,
+		pr_err("%s:%d csidbase %p, csid params %p\n", __func__,
 			__LINE__, csidbase, csid_params);
 		return -EINVAL;
 	}
@@ -434,7 +427,7 @@ static long msm_csid_cmd(struct csid_device *csid_dev, void *arg)
 	struct csid_cfg_data *cdata = (struct csid_cfg_data *)arg;
 
 	if (!csid_dev || !cdata) {
-		pr_err("%s:%d csid_dev %pK, cdata %pK\n", __func__, __LINE__,
+		pr_err("%s:%d csid_dev %p, cdata %p\n", __func__, __LINE__,
 			csid_dev, cdata);
 		return -EINVAL;
 	}
@@ -457,15 +450,16 @@ static long msm_csid_cmd(struct csid_device *csid_dev, void *arg)
 			break;
 		}
 		if (csid_params.lut_params.num_cid < 1 ||
-			csid_params.lut_params.num_cid > MAX_CID) {
+			csid_params.lut_params.num_cid > 16) {
 			pr_err("%s: %d num_cid outside range\n",
 				 __func__, __LINE__);
 			rc = -EINVAL;
 			break;
 		}
 		for (i = 0; i < csid_params.lut_params.num_cid; i++) {
-			vc_cfg = kzalloc(sizeof(struct msm_camera_csid_vc_cfg),
-			    GFP_KERNEL);
+			vc_cfg = kzalloc(csid_params.lut_params.num_cid *
+				sizeof(struct msm_camera_csid_vc_cfg),
+				GFP_KERNEL);
 			if (!vc_cfg) {
 				pr_err("%s: %d failed\n", __func__, __LINE__);
 				for (i--; i >= 0; i--)
@@ -475,7 +469,8 @@ static long msm_csid_cmd(struct csid_device *csid_dev, void *arg)
 			}
 			if (copy_from_user(vc_cfg,
 				(void *)csid_params.lut_params.vc_cfg[i],
-				sizeof(struct msm_camera_csid_vc_cfg))) {
+				(csid_params.lut_params.num_cid *
+				sizeof(struct msm_camera_csid_vc_cfg)))) {
 				pr_err("%s: %d failed\n", __func__, __LINE__);
 				kfree(vc_cfg);
 				for (i--; i >= 0; i--)
@@ -484,10 +479,6 @@ static long msm_csid_cmd(struct csid_device *csid_dev, void *arg)
 				break;
 			}
 			csid_params.lut_params.vc_cfg[i] = vc_cfg;
-		}
-		if (rc < 0) {
-			pr_err("%s:%d failed\n", __func__, __LINE__);
-			break;
 		}
 		rc = msm_csid_config(csid_dev, &csid_params);
 		for (i--; i >= 0; i--)

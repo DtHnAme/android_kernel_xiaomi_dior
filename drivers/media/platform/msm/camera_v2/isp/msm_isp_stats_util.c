@@ -386,13 +386,6 @@ static int msm_isp_start_stats_stream(struct vfe_device *vfe_dev,
 	uint32_t stats_mask = 0, comp_stats_mask = 0, idx;
 	struct msm_vfe_stats_stream *stream_info;
 	struct msm_vfe_stats_shared_data *stats_data = &vfe_dev->stats_data;
-
-	if (stream_cfg_cmd->num_streams > MSM_ISP_STATS_MAX) {
-		pr_err("%s invalid num_streams %d\n", __func__,
-			stream_cfg_cmd->num_streams);
-		return -EINVAL;
-	}
-
 	for (i = 0; i < stream_cfg_cmd->num_streams; i++) {
 		idx = STATS_IDX(stream_cfg_cmd->stream_handle[i]);
 
@@ -443,13 +436,6 @@ static int msm_isp_stop_stats_stream(struct vfe_device *vfe_dev,
 	uint32_t stats_mask = 0, comp_stats_mask = 0, idx;
 	struct msm_vfe_stats_stream *stream_info;
 	struct msm_vfe_stats_shared_data *stats_data = &vfe_dev->stats_data;
-
-	if (stream_cfg_cmd->num_streams > MSM_ISP_STATS_MAX) {
-		pr_err("%s invalid num_streams %d\n", __func__,
-			stream_cfg_cmd->num_streams);
-		return -EINVAL;
-	}
-
 	for (i = 0; i < stream_cfg_cmd->num_streams; i++) {
 		idx = STATS_IDX(stream_cfg_cmd->stream_handle[i]);
 
@@ -486,12 +472,6 @@ static int msm_isp_stop_stats_stream(struct vfe_device *vfe_dev,
 		   vfe_dev, comp_stats_mask, 0);
 	}
 
-	if (stream_cfg_cmd->num_streams > MSM_ISP_STATS_MAX) {
-		pr_err("%s invalid num_streams %d\n", __func__,
-			stream_cfg_cmd->num_streams);
-		return -EINVAL;
-	}
-
 	for (i = 0; i < stream_cfg_cmd->num_streams; i++) {
 		idx = STATS_IDX(stream_cfg_cmd->stream_handle[i]);
 
@@ -510,9 +490,6 @@ int msm_isp_cfg_stats_stream(struct vfe_device *vfe_dev, void *arg)
 {
 	int rc = 0;
 	struct msm_vfe_stats_stream_cfg_cmd *stream_cfg_cmd = arg;
-	struct msm_vfe_stats_shared_data *stats_data = &vfe_dev->stats_data;
-	stats_data->stats_burst_len =  stream_cfg_cmd->stats_burst_len;
-
 	if (vfe_dev->stats_data.num_active_stream == 0)
 		vfe_dev->hw_info->vfe_ops.stats_ops.cfg_ub(vfe_dev);
 
