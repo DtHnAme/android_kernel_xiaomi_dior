@@ -22,6 +22,8 @@
 #include <linux/leds.h>
 #include <linux/qpnp/pwm.h>
 #include <linux/err.h>
+#include <linux/backlight.h>
+#include <linux/mfd/lm3533.h>
 #include <linux/display_helper.h>
 #include <linux/display_state.h>
 
