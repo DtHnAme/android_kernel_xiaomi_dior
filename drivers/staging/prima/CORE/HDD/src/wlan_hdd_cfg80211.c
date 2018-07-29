@@ -2132,8 +2132,6 @@ wlan_hdd_extscan_config_policy
                                                         { .type = NLA_U32 },
     [QCA_WLAN_VENDOR_ATTR_EXTSCAN_GET_VALID_CHANNELS_CONFIG_PARAM_WIFI_BAND] =
                                                         { .type = NLA_U32 },
-    [QCA_WLAN_VENDOR_ATTR_EXTSCAN_GET_VALID_CHANNELS_CONFIG_PARAM_MAX_CHANNELS] =
-                                                        { .type = NLA_U32 },
     [QCA_WLAN_VENDOR_ATTR_EXTSCAN_CHANNEL_SPEC_CHANNEL] = { .type = NLA_U32 },
     [QCA_WLAN_VENDOR_ATTR_EXTSCAN_CHANNEL_SPEC_DWELL_TIME] =
                                                             { .type = NLA_U32 },
@@ -4340,9 +4338,7 @@ static int wlan_hdd_cfg80211_extscan_reset_significant_change(
 static const struct nla_policy
 wlan_hdd_tdls_config_enable_policy[QCA_WLAN_VENDOR_ATTR_TDLS_ENABLE_MAX +1] =
 {
-    [QCA_WLAN_VENDOR_ATTR_TDLS_ENABLE_MAC_ADDR] = {
-        .type = NLA_UNSPEC,
-        .len = HDD_MAC_ADDR_LEN},
+    [QCA_WLAN_VENDOR_ATTR_TDLS_ENABLE_MAC_ADDR] = {.type = NLA_UNSPEC },
     [QCA_WLAN_VENDOR_ATTR_TDLS_ENABLE_CHANNEL] = {.type = NLA_S32 },
     [QCA_WLAN_VENDOR_ATTR_TDLS_ENABLE_GLOBAL_OPERATING_CLASS] =
                                                        {.type = NLA_S32 },
@@ -4354,18 +4350,15 @@ wlan_hdd_tdls_config_enable_policy[QCA_WLAN_VENDOR_ATTR_TDLS_ENABLE_MAX +1] =
 static const struct nla_policy
 wlan_hdd_tdls_config_disable_policy[QCA_WLAN_VENDOR_ATTR_TDLS_DISABLE_MAX +1] =
 {
-    [QCA_WLAN_VENDOR_ATTR_TDLS_DISABLE_MAC_ADDR] = {
-        .type = NLA_UNSPEC,
-        .len = HDD_MAC_ADDR_LEN},
+    [QCA_WLAN_VENDOR_ATTR_TDLS_DISABLE_MAC_ADDR] = {.type = NLA_UNSPEC },
+
 };
 
 static const struct nla_policy
 wlan_hdd_tdls_config_state_change_policy[
                     QCA_WLAN_VENDOR_ATTR_TDLS_STATE_MAX +1] =
 {
-    [QCA_WLAN_VENDOR_ATTR_TDLS_STATE_MAC_ADDR] = {
-        .type = NLA_UNSPEC,
-        .len = HDD_MAC_ADDR_LEN},
+    [QCA_WLAN_VENDOR_ATTR_TDLS_STATE_MAC_ADDR] = {.type = NLA_UNSPEC },
     [QCA_WLAN_VENDOR_ATTR_TDLS_NEW_STATE] = {.type = NLA_S32 },
     [QCA_WLAN_VENDOR_ATTR_TDLS_STATE_REASON] = {.type = NLA_S32 },
     [QCA_WLAN_VENDOR_ATTR_TDLS_STATE_CHANNEL] = {.type = NLA_S32 },
@@ -4378,9 +4371,7 @@ static const struct nla_policy
 wlan_hdd_tdls_config_get_status_policy[
                      QCA_WLAN_VENDOR_ATTR_TDLS_GET_STATUS_MAX +1] =
 {
-    [QCA_WLAN_VENDOR_ATTR_TDLS_GET_STATUS_MAC_ADDR] ={
-        .type = NLA_UNSPEC,
-        .len = HDD_MAC_ADDR_LEN},
+    [QCA_WLAN_VENDOR_ATTR_TDLS_GET_STATUS_MAC_ADDR] = {.type = NLA_UNSPEC },
     [QCA_WLAN_VENDOR_ATTR_TDLS_GET_STATUS_STATE] = {.type = NLA_S32 },
     [QCA_WLAN_VENDOR_ATTR_TDLS_GET_STATUS_REASON] = {.type = NLA_S32 },
     [QCA_WLAN_VENDOR_ATTR_TDLS_GET_STATUS_CHANNEL] = {.type = NLA_S32 },
@@ -4854,15 +4845,6 @@ static int wlan_hdd_cfg80211_exttdls_disable(struct wiphy *wiphy,
    return ret;
 }
 
-#define MAX_CONCURRENT_MATRIX \
-	QCA_WLAN_VENDOR_ATTR_GET_CONCURRENCY_MATRIX_MAX
-#define MATRIX_CONFIG_PARAM_SET_SIZE_MAX \
-	QCA_WLAN_VENDOR_ATTR_GET_CONCURRENCY_MATRIX_CONFIG_PARAM_SET_SIZE_MAX
-static const struct nla_policy
-wlan_hdd_get_concurrency_matrix_policy[MAX_CONCURRENT_MATRIX + 1] = {
-	[MATRIX_CONFIG_PARAM_SET_SIZE_MAX] = {.type = NLA_U32},
-};
-
 static int
 __wlan_hdd_cfg80211_get_supported_features(struct wiphy *wiphy,
                                          struct wireless_dev *wdev,
@@ -5010,7 +4992,7 @@ __wlan_hdd_cfg80211_get_concurrency_matrix(struct wiphy *wiphy,
 {
     uint32_t feature_set_matrix[WLAN_HDD_MAX_FEATURE_SET] = {0};
     uint8_t i, feature_sets, max_feature_sets;
-    struct nlattr *tb[MAX_CONCURRENT_MATRIX + 1];
+    struct nlattr *tb[QCA_WLAN_VENDOR_ATTR_GET_CONCURRENCY_MATRIX_MAX + 1];
     struct sk_buff *reply_skb;
     hdd_context_t *pHddCtx = wiphy_priv(wiphy);
     int ret;
@@ -5023,19 +5005,19 @@ __wlan_hdd_cfg80211_get_concurrency_matrix(struct wiphy *wiphy,
         return ret;
     }
 
-    if (nla_parse(tb, MAX_CONCURRENT_MATRIX,
+    if (nla_parse(tb, QCA_WLAN_VENDOR_ATTR_GET_CONCURRENCY_MATRIX_MAX,
                   data, data_len, NULL)) {
         hddLog(LOGE, FL("Invalid ATTR"));
         return -EINVAL;
     }
 
     /* Parse and fetch max feature set */
-    if (!tb[MATRIX_CONFIG_PARAM_SET_SIZE_MAX]) {
+    if (!tb[QCA_WLAN_VENDOR_ATTR_GET_CONCURRENCY_MATRIX_CONFIG_PARAM_SET_SIZE_MAX]) {
         hddLog(LOGE, FL("Attr max feature set size failed"));
         return -EINVAL;
     }
     max_feature_sets = nla_get_u32(
-     tb[MATRIX_CONFIG_PARAM_SET_SIZE_MAX]);
+     tb[QCA_WLAN_VENDOR_ATTR_GET_CONCURRENCY_MATRIX_CONFIG_PARAM_SET_SIZE_MAX]);
     hddLog(LOG1, FL("Max feature set size (%d)"), max_feature_sets);
 
     /* Fill feature combination matrix */
@@ -5173,9 +5155,7 @@ const struct
 nla_policy qca_wlan_vendor_attr[QCA_WLAN_VENDOR_ATTR_MAX+1] =
 {
     [QCA_WLAN_VENDOR_ATTR_ROAMING_POLICY] = { .type = NLA_U32 },
-    [QCA_WLAN_VENDOR_ATTR_MAC_ADDR]       = {
-           .type = NLA_BINARY,
-           .len = HDD_MAC_ADDR_LEN},
+    [QCA_WLAN_VENDOR_ATTR_MAC_ADDR]       = { .type = NLA_UNSPEC },
 };
 
 static int __wlan_hdd_cfg80211_firmware_roaming(struct wiphy *wiphy,
@@ -5218,11 +5198,6 @@ static int __wlan_hdd_cfg80211_firmware_roaming(struct wiphy *wiphy,
     /* Parse and fetch bssid */
     if (!tb[QCA_WLAN_VENDOR_ATTR_MAC_ADDR]) {
         hddLog(VOS_TRACE_LEVEL_ERROR, FL("attr bss id failed"));
-        return -EINVAL;
-    }
-
-    if (nla_len(tb[QCA_WLAN_VENDOR_ATTR_MAC_ADDR]) < sizeof(bssid)) {
-        hddLog(VOS_TRACE_LEVEL_ERROR, FL("attr bss id is invalid"));
         return -EINVAL;
     }
 
@@ -6793,9 +6768,6 @@ VOS_STATUS wlan_hdd_validate_operation_channel(hdd_adapter_t *pAdapter,int chann
     return VOS_STATUS_SUCCESS;
 
 }
-
-#undef MAX_CONCURRENT_MATRIX
-#undef MATRIX_CONFIG_PARAM_SET_SIZE_MAX
 
 /**
  * FUNCTION: __wlan_hdd_cfg80211_set_channel
@@ -8845,31 +8817,15 @@ static int __wlan_hdd_change_station(struct wiphy *wiphy,
                 }
                 StaParams.supported_channels_len = j;
             }
-            if (params->supported_oper_classes_len >
-                SIR_MAC_MAX_SUPP_OPER_CLASSES) {
-                VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                          "received oper classes:%d, resetting it to max supported %d",
-                          params->supported_oper_classes_len,
-                          SIR_MAC_MAX_SUPP_OPER_CLASSES);
-                params->supported_oper_classes_len =
-                    SIR_MAC_MAX_SUPP_OPER_CLASSES;
-            }
             vos_mem_copy(StaParams.supported_oper_classes,
                          params->supported_oper_classes,
                          params->supported_oper_classes_len);
             StaParams.supported_oper_classes_len  =
                                              params->supported_oper_classes_len;
 
-            if (params->ext_capab_len > sizeof(StaParams.extn_capability)) {
-                VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
-                          "received extn capabilities: %d, reset to max supported",
-                          params->ext_capab_len);
-                params->ext_capab_len = sizeof(StaParams.extn_capability);
-            }
-
             if (0 != params->ext_capab_len)
                 vos_mem_copy(StaParams.extn_capability, params->ext_capab,
-                             params->ext_capab_len);
+                             sizeof(StaParams.extn_capability));
 
             if (NULL != params->ht_capa)
             {
@@ -16624,7 +16580,6 @@ static int __wlan_hdd_cfg80211_testmode(struct wiphy *wiphy, void *data, int len
                 return -EINVAL;
             }
 
-            vos_mem_zero(hb_params, sizeof(tSirLPHBReq));
             vos_mem_copy(hb_params, buf, buf_len);
             smeStatus = sme_LPHBConfigReq((tHalHandle)(pHddCtx->hHal),
                                hb_params,
