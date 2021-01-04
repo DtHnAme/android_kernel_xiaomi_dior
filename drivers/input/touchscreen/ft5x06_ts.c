@@ -177,19 +177,7 @@ struct ft5x06_data {
 	u8 chip_id;
 	u8 is_usb_plug_in;
 	int current_index;
-	struct input_dev * power_input;
-	struct ft5x06_finger power_finger;
-	int d2w_switch;
-	bool touch_cnt;
-	struct notifier_block notif;
-	bool disable_keys;
 };
-
-static ssize_t ft5x06_ts_disable_keys_show(struct device *dev,
-	struct device_attribute *attr, char *buf);
-
-static ssize_t ft5x06_ts_disable_keys_store(struct device *dev,
-struct device_attribute *attr, const char *buf, size_t count);
 
 static int ft5x06_recv_byte(struct ft5x06_data *ft5x06, u8 len, ...)
 {
@@ -878,8 +866,6 @@ static void ft5x06_report_touchevent(struct ft5x06_data *ft5x06,
 #ifdef CONFIG_TOUCHSCREEN_FT5X06_TYPEB
 		input_mt_report_slot_state(ft5x06->input, MT_TOOL_FINGER, 1);
 #endif
-		if (ft5x06->disable_keys && finger[i].y >= 1317) /* Hardware keypads */
-			return;
 		input_report_abs(ft5x06->input, ABS_MT_TRACKING_ID, i);
 		input_report_abs(ft5x06->input, ABS_MT_POSITION_X ,
 			max(1, finger[i].x)); /* for fruit ninja */
@@ -1435,8 +1421,6 @@ static DEVICE_ATTR(dbgdump, 0644, ft5x06_dbgdump_show, ft5x06_dbgdump_store);
 static DEVICE_ATTR(updatefw, 0200, NULL, ft5x06_updatefw_store);
 static DEVICE_ATTR(rawdatashow, 0644, ft5x06_rawdata_show, NULL);
 static DEVICE_ATTR(selftest, 0644, ft5x06_selftest_show, ft5x06_selftest_store);
-static DEVICE_ATTR(d2w_switch, 0644, ft5x06_d2w_switch_show, ft5x06_d2w_switch_store);
-static DEVICE_ATTR(disable_keys, S_IWUSR | S_IRUSR, ft5x06_ts_disable_keys_show, ft5x06_ts_disable_keys_store);
 
 static struct attribute *ft5x06_attrs[] = {
 	&dev_attr_tpfwver.attr,
@@ -1445,31 +1429,12 @@ static struct attribute *ft5x06_attrs[] = {
 	&dev_attr_updatefw.attr,
 	&dev_attr_rawdatashow.attr,
 	&dev_attr_selftest.attr,
-	&dev_attr_d2w_switch.attr,
-	&dev_attr_disable_keys.attr,
 	NULL
 };
 
 static const struct attribute_group ft5x06_attr_group = {
 	.attrs = ft5x06_attrs
 };
-
-static int ft5x06_proc_init(struct device *dev, struct ft5x06_data *data)
-{
-       //struct i2c_client *client = to_i2c_client(dev);
-
-       int ret = 0;
-       char *buf = NULL;
-       char *key_disabler_sysfs_node;
-
-       buf = data = kzalloc(sizeof(struct ft5x06_data), GFP_KERNEL);
-
-       key_disabler_sysfs_node = kzalloc(sizeof(struct ft5x06_data), GFP_KERNEL);
-
-       kfree(buf);
-       kfree(key_disabler_sysfs_node);
-       return ret;
-}
 
 static int ft5x06_power_on(struct ft5x06_data *data, bool on)
 {
@@ -1733,6 +1698,7 @@ static int ft5x06_parse_dt(struct device *dev,
 						sizeof(struct ft5x06_rect) * num_buttons, GFP_KERNEL);
 		if (pdata->keypad[j].button == NULL)
 			return -ENOMEM;
+
 		rc = of_property_read_u32_array(sub_np, "ft5x06_i2c,key-map",
 						keymap, num_buttons);
 		if (rc) {
@@ -1808,29 +1774,6 @@ static int ft5x06_parse_dt(struct device *dev,
 	ft5x06_dt_dump(dev, pdata);
 
 	return 0;
-}
-
-static ssize_t ft5x06_ts_disable_keys_show(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct ft5x06_data *data = dev_get_drvdata(dev);
-	const char c = data->disable_keys ? '1' : '0';
-	return sprintf(buf, "%c\n", c);
-}
-
-static ssize_t ft5x06_ts_disable_keys_store(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct ft5x06_data *data = dev_get_drvdata(dev);
-	int i;
-
-	if (sscanf(buf, "%u", &i) == 1 && i < 2) {
-		data->disable_keys = (i == 1);
-		return count;
-	} else {
-		dev_dbg(dev, "disable_keys write error\n");
-		return -EINVAL;
-	}
 }
 
 struct ft5x06_data *ft5x06_probe(struct device *dev,
@@ -2035,7 +1978,6 @@ struct ft5x06_data *ft5x06_probe(struct device *dev,
 		dev_err(dev, "fail to export sysfs entires\n");
 		goto err_put_vkeys;
 	}
-	ft5x06_proc_init(dev, ft5x06);
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	ft5x06->early_suspend.level   = EARLY_SUSPEND_LEVEL_BLANK_SCREEN+1;
@@ -2049,7 +1991,6 @@ struct ft5x06_data *ft5x06_probe(struct device *dev,
 
 	INIT_DELAYED_WORK(&ft5x06->noise_filter_delayed_work,
 				ft5x06_noise_filter_delayed_work);
-
 	return ft5x06;
 
 err_put_vkeys:
