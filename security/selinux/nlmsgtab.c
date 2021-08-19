@@ -71,12 +71,6 @@ static struct nlmsg_perm nlmsg_route_perms[] =
 	{ RTM_SETDCB,		NETLINK_ROUTE_SOCKET__NLMSG_WRITE },
 };
 
-static struct nlmsg_perm nlmsg_firewall_perms[] =
-{
-	{ IPQM_MODE,		NETLINK_FIREWALL_SOCKET__NLMSG_WRITE },
-	{ IPQM_VERDICT,		NETLINK_FIREWALL_SOCKET__NLMSG_WRITE },
-};
-
 static struct nlmsg_perm nlmsg_tcpdiag_perms[] =
 {
 	{ TCPDIAG_GETSOCK,		NETLINK_TCPDIAG_SOCKET__NLMSG_READ },
@@ -152,12 +146,6 @@ int selinux_nlmsg_lookup(u16 sclass, u16 nlmsg_type, u32 *perm)
 	case SECCLASS_NETLINK_ROUTE_SOCKET:
 		err = nlmsg_perm(nlmsg_type, perm, nlmsg_route_perms,
 				 sizeof(nlmsg_route_perms));
-		break;
-
-	case SECCLASS_NETLINK_FIREWALL_SOCKET:
-	case SECCLASS_NETLINK_IP6FW_SOCKET:
-		err = nlmsg_perm(nlmsg_type, perm, nlmsg_firewall_perms,
-				 sizeof(nlmsg_firewall_perms));
 		break;
 
 	case SECCLASS_NETLINK_TCPDIAG_SOCKET:
