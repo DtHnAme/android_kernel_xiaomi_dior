@@ -66,9 +66,9 @@
 #include <linux/rbtree.h>
 #include <linux/sched.h>
 #include <linux/seq_file.h>
+#include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
-#include <linux/slab.h>
 #include <linux/pid_namespace.h>
 #include <linux/security.h>
 #include <linux/spinlock.h>
@@ -2643,7 +2643,6 @@ retry:
 		BUG_ON(t->buffer == NULL);
 		if (t->buffer->target_node) {
 			struct binder_node *target_node = t->buffer->target_node;
-
 			tr.target.ptr = target_node->ptr;
 			tr.cookie =  target_node->cookie;
 			t->saved_priority = task_nice(current);
@@ -2665,7 +2664,6 @@ retry:
 
 		if (t->from) {
 			struct task_struct *sender = t->from->proc->tsk;
-
 			tr.sender_pid = task_tgid_nr_ns(sender,
 							current->nsproxy->pid_ns);
 		} else {
